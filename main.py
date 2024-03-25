@@ -1,86 +1,148 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from typing import List, Optional
+from fastapi import FastAPI, Path
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 from pydantic import BaseModel
 
-
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
-
-
-class Asset(Base):
-    __tablename__ = "assets"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    serial = Column(String)
-    brand = Column(String)
-    model = Column(String)
-
-
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  
+    allow_headers=["*"],  
+)
 
+assets = {
+    1: {
+        "id": 1,
+        "name": "Laptop",
+        "serial": "lap/02/ars",
+        "brand": "Apple",
+        "model": "MacBook",
+        "status": "available",
+        "staff_no": None,
+        "email": None,
+        "department": None,
+        "return_date": None
+    },
+    2: {
+        "id": 2,
+        "name": "Projector",
+        "serial": "proj/01/xyz",
+        "brand": "Sony",
+        "model": "XYZ-1000",
+        "status": "available",
+        "staff_no": None,
+        "email": None,
+        "department": None,
+        "return_date": None
+    },
+    3: {
+        "id": 3,
+        "name": "Monitor",
+        "serial": "mon/01/abc",
+        "brand": "Samsung",
+        "model": "S27R650FDN",
+        "status": "available",
+        "staff_no": None,
+        "email": None,
+        "department": None,
+        "return_date": None
+    },
+    4: {
+        "id": 4,
+        "name": "Printer",
+        "serial": "prn/01/pqr",
+        "brand": "HP",
+        "model": "LaserJet Pro MFP M428fdw",
+        "status": "available",
+        "staff_no": None,
+        "email": None,
+        "department": None,
+        "return_date": None
+    },
+    5: {
+        "id": 5,
+        "name": "Printer",
+        "serial": "prn/02/uvw",
+        "brand": "Epson",
+        "model": "EcoTank ET-2760",
+        "status": "available",
+        "staff_no": None,
+        "email": None,
+        "department": None,
+        "return_date": None
+    }
+}
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-class AssetCreate(BaseModel):
+class Asset(BaseModel):
+    id: Optional[int] = None
     name: str
     serial: str
     brand: str
     model: str
+    status: str
+    staff_no: Optional[str] = None
+    email: Optional[str] = None
+    department: Optional[str] = None
+    return_date: Optional[str] = None
 
-class AssetUpdate(BaseModel):
+
+class UpdateAsset(BaseModel):
     name: Optional[str] = None
     serial: Optional[str] = None
     brand: Optional[str] = None
     model: Optional[str] = None
+    status: Optional[str] = None
+    staff_no: Optional[str] = None
+    email: Optional[str] = None
+    department: Optional[str] = None
+    return_date: Optional[str] = None
 
-@app.post("/assets/", response_model=Asset)
-def create_asset(asset: AssetCreate, db: Session = Depends(get_db)):
-    db_asset = Asset(**asset.dict())
-    db.add(db_asset)
-    db.commit()
-    db.refresh(db_asset)
-    return db_asset
+@app.get("/")
+def index():
+    return {"name": "First Data"}
 
-@app.get("/assets/{asset_id}", response_model=Asset)
-def read_asset(asset_id: int, db: Session = Depends(get_db)):
-    db_asset = db.query(Asset).filter(Asset.id == asset_id).first()
-    if db_asset is None:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    return db_asset
+@app.get("/get-all-assets")
+def get_all_assets():
+    return assets
 
-@app.put("/assets/{asset_id}", response_model=Asset)
-def update_asset(asset_id: int, asset: AssetUpdate, db: Session = Depends(get_db)):
-    db_asset = db.query(Asset).filter(Asset.id == asset_id).first()
-    if db_asset is None:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    for attr, value in asset.dict().items():
+@app.get("/get-asset/{asset_id}")
+def get_asset(asset_id: int = Path(..., description="The ID of the asset you want to view")):
+    if asset_id in assets:
+        return assets[asset_id]
+    else:
+        return {"Data": "Asset not found"}
+
+@app.get("/get-by-name/")
+def get_asset_by_name(name: str):
+    for asset_id, asset_data in assets.items():
+        if asset_data["name"] == name:
+            return {asset_id: asset_data}
+    return {"Data": "Not found"}
+
+@app.post("/create-asset")
+def create_asset(asset: Asset):
+    new_asset_id = max(assets.keys(), default=0) + 1  
+    asset.id = new_asset_id  
+    assets[new_asset_id] = asset.dict()
+    return assets[new_asset_id]
+
+@app.put("/update-asset/{asset_id}")
+def update_asset(asset_id: int, asset: UpdateAsset):
+    if asset_id not in assets:
+        return {"Error": "Asset does not exist"}
+    
+    for key, value in asset.dict().items():
         if value is not None:
-            setattr(db_asset, attr, value)
-    db.commit()
-    db.refresh(db_asset)
-    return db_asset
+            assets[asset_id][key] = value
+    
+    return assets[asset_id]
 
-@app.delete("/assets/{asset_id}")
-def delete_asset(asset_id: int, db: Session = Depends(get_db)):
-    db_asset = db.query(Asset).filter(Asset.id == asset_id).first()
-    if db_asset is None:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    db.delete(db_asset)
-    db.commit()
-    return {"message": "Asset deleted successfully"}
+@app.delete("/delete-asset/{asset_id}")
+def delete_asset(asset_id: int):
+    if asset_id not in assets:
+        return {"Error": "Asset does not exist"}
+    
+    del assets[asset_id]
+    return {"Message": "Asset deleted successfully"}
