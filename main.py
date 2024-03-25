@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Path
+from fastapi import FastAPI, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from pydantic import BaseModel
@@ -146,3 +146,15 @@ def delete_asset(asset_id: int):
     
     del assets[asset_id]
     return {"Message": "Asset deleted successfully"}
+
+@app.get("/requests")
+def get_requests(asset_id: int = Query(..., description="The ID of the asset to fetch requests for")):
+    requests = []
+    for request_id, request_data in assets.items():
+        if request_data["id"] == asset_id:
+            requests.append({
+                "id": request_id,
+                "asset_id": request_data["id"],
+                "status": request_data["status"]
+            })
+    return requests
